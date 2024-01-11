@@ -1,6 +1,7 @@
 import os
 import pandas as pd
 import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import RobustScaler
@@ -72,6 +73,15 @@ latent_space_values = encoder.predict(data_scaled)
 original_data_scaled_inverse = scaler.inverse_transform(data_scaled.reshape(-1, 6))
 reconstructed_data_inverse = scaler.inverse_transform(reconstructed_data.reshape(-1, 6))
 
+matched_data = pd.read_csv('C:/Users/Bradl/OneDrive/Desktop/BDBS/matched_stars.csv')
+
+# Merge the matched data with the latent space representations
+merged_data = pd.merge(data, matched_data, left_on=['umag', 'gmag', 'rmag', 'imag', 'zmag', 'ymag'], right_on=['umag', 'gmag', 'rmag', 'imag', 'zmag', 'ymag'], how='inner')
+
+
+
+
+
 # Step 3: Combine the data into a DataFrame
 combined_data = pd.DataFrame(original_data_scaled_inverse, columns=['umag_original', 'gmag_original', 'rmag_original', 'imag_original', 'zmag_original', 'ymag_original'])
 combined_data[['umag_reconstructed', 'gmag_reconstructed', 'rmag_reconstructed', 'imag_reconstructed', 'zmag_reconstructed', 'ymag_reconstructed']] = reconstructed_data_inverse
@@ -82,12 +92,34 @@ output_file_path = 'combined_data.csv'
 combined_data.to_csv(output_file_path, index=False)
 output_dir = 'magnitude_reconstructions'
 os.makedirs(output_dir, exist_ok=True)
-plt.figure(figsize=(8, 6))
-plt.scatter(combined_data['latent_dim1'], combined_data['latent_dim2'], alpha=0.2, c='black', s=0.1)
-plt.xlabel('Latent Dimension 2')
-plt.ylabel('Latent Dimension 1')
+
+
+# Map OTYPE to numerical values
+otype_mapping = {otype: i for i, otype in enumerate(merged_data['object_type'].unique())}
+merged_data['OTYPE_numeric'] = merged_data['object_type'].map(otype_mapping)
+
+palette = sns.color_palette("husl", n_colors=len(merged_data['object_type'].unique()))
+
+plt.figure(figsize=(12, 8))
+marker_styles = {'RRLyrae': 's', 'HorBranch*': 'D', 'EllipVar': '^', 'RGB*': '*', 'delSctV*': 'x', 'EclBin': 'p'}
+# Loop through each star type and plot with corresponding marker style
+plt.scatter(combined_data['latent_dim1'], combined_data['latent_dim2'], c='grey', s=0.2, alpha=0.3)
+for otype, marker in marker_styles.items():
+    otype_data = merged_data[merged_data['object_type'] == otype]
+    plt.scatter(otype_data['latent_dim1'], otype_data['latent_dim2'], label=otype, marker=marker, s=30, alpha=0.9)
+
+plt.xlabel('Latent Dimension 1')
+plt.ylabel('Latent Dimension 2')
 plt.title('Latent Space for Stars in the Southern Galactic Bulge')
-plt.savefig(f'{output_dir}/latentspace.jpeg')
+plt.legend(title="OTYPE")
+
+# Set the plot background color to black
+# plt.gca().set_facecolor('black')
+
+# Show the plot
+plt.show()
+plt.savefig(f'{output_dir}/latent_space.png', format='png', dpi=300)
+
 
 magnitudes = ['umag', 'gmag', 'rmag', 'imag', 'zmag', 'ymag']
 for mag in magnitudes:
