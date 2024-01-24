@@ -11,7 +11,6 @@ from keras.models import Sequential
 from keras.layers import LSTM, Dense, RepeatVector, TimeDistributed
 
 
-
 file_path = '/N/project/catypGC/BDBS/bdbsparallaxprocessed_data.csv'
 
 data = pd.read_csv(file_path)[['umag', 'gmag', 'rmag', 'imag', 'zmag', 'ymag']]
@@ -26,7 +25,7 @@ data_scaled = scaler.fit_transform(data)
 # Reshape data to [samples, timesteps, features] for Long-Short Term Memory (LSTM) Format.
 data_scaled = data_scaled.reshape((data_scaled.shape[0], 1, data_scaled.shape[1]))
 
-train_data, test_data = train_test_split(data_scaled, test_size=0.4, random_state=42)
+train_data, test_data = train_test_split(data_scaled, test_size=0.2, random_state=42)
 
 
 model = Sequential()
@@ -41,12 +40,24 @@ learning_rate = 0.001
 batch_size = 16
 
 # Train the model
-model.fit(train_data, train_data, epochs=10, batch_size=batch_size, verbose=1)
+history = model.fit(train_data, train_data, epochs=3, batch_size=batch_size, validation_data=(test_data, test_data), verbose=1)
 
-model.summary()
+# model.summary()
+
+plt.figure(figsize=(8, 6))
+plt.plot(history.history['loss'], label='Training Loss')
+plt.plot(history.history['val_loss'], label='Validation Loss')
+plt.title('Model Loss')
+plt.ylabel('Loss')
+plt.xlabel('Epoch')
+plt.legend(loc='upper right')
+plt.savefig('loss_vs_epochs.png', format='png', dpi=500)
+plt.close()
+
 
 # Predict and evaluate
 predicted = model.predict(data_scaled, verbose=0)
+
 # Reshape and inverse transform to original scale
 predicted = predicted.reshape((predicted.shape[0], predicted.shape[2]))
 predicted = scaler.inverse_transform(predicted)
@@ -73,17 +84,10 @@ latent_space_values = encoder.predict(data_scaled)
 original_data_scaled_inverse = scaler.inverse_transform(data_scaled.reshape(-1, 6))
 reconstructed_data_inverse = scaler.inverse_transform(reconstructed_data.reshape(-1, 6))
 
-matched_data = pd.read_csv('C:/Users/Bradl/OneDrive/Desktop/BDBS/matched_stars.csv')
-
-# Merge the matched data with the latent space representations
-merged_data = pd.merge(data, matched_data, left_on=['umag', 'gmag', 'rmag', 'imag', 'zmag', 'ymag'], right_on=['umag', 'gmag', 'rmag', 'imag', 'zmag', 'ymag'], how='inner')
-
-
-
-
+matched_data = pd.read_csv('/N/project/catypGC/BDBS/simbad_matched.csv')
 
 # Step 3: Combine the data into a DataFrame
-combined_data = pd.DataFrame(original_data_scaled_inverse, columns=['umag_original', 'gmag_original', 'rmag_original', 'imag_original', 'zmag_original', 'ymag_original'])
+combined_data = pd.DataFrame(original_data_scaled_inverse, columns=['umag', 'gmag', 'rmag', 'imag', 'zmag', 'ymag'])
 combined_data[['umag_reconstructed', 'gmag_reconstructed', 'rmag_reconstructed', 'imag_reconstructed', 'zmag_reconstructed', 'ymag_reconstructed']] = reconstructed_data_inverse
 combined_data[['latent_dim1', 'latent_dim2']] = latent_space_values.reshape(-1, 2)
 
@@ -93,6 +97,7 @@ combined_data.to_csv(output_file_path, index=False)
 output_dir = 'magnitude_reconstructions'
 os.makedirs(output_dir, exist_ok=True)
 
+merged_data = pd.merge(combined_data, matched_data, left_on=['umag', 'gmag', 'rmag', 'imag', 'zmag', 'ymag'], right_on=['umag', 'gmag', 'rmag', 'imag', 'zmag', 'ymag'], how='inner')
 
 # Map OTYPE to numerical values
 otype_mapping = {otype: i for i, otype in enumerate(merged_data['object_type'].unique())}
@@ -101,36 +106,11 @@ merged_data['OTYPE_numeric'] = merged_data['object_type'].map(otype_mapping)
 palette = sns.color_palette("husl", n_colors=len(merged_data['object_type'].unique()))
 
 plt.figure(figsize=(12, 8))
-marker_styles = {'RRLyrae': 's', 'HorBranch*': 'D', 'EllipVar': '^', 'RGB*': '*', 'delSctV*': 'x', 'EclBin': 'p'}
+
+marker_styles = {'RRLyrae': 's', 'HorBranch*': 'D', 'EllipVar': '^', 'RGB*': '*', 'delSctV*': 'x', 'EclBin': 'p', 'HotSubdwarf_Candidate': '*', 'ChemPec*' : 'v', 'Radio': 'o', 'LongPeriodV*_Candidate': 'o', 'LongPeriodV*': 'o','ChemPec*': '^', 'Variable*':'*', 'PulsV': 'v'}
 # Loop through each star type and plot with corresponding marker style
 plt.scatter(combined_data['latent_dim1'], combined_data['latent_dim2'], c='grey', s=0.2, alpha=0.3)
 for otype, marker in marker_styles.items():
     otype_data = merged_data[merged_data['object_type'] == otype]
+    print(otype_data.columns)
     plt.scatter(otype_data['latent_dim1'], otype_data['latent_dim2'], label=otype, marker=marker, s=30, alpha=0.9)
-
-plt.xlabel('Latent Dimension 1')
-plt.ylabel('Latent Dimension 2')
-plt.title('Latent Space for Stars in the Southern Galactic Bulge')
-plt.legend(title="OTYPE")
-
-# Set the plot background color to black
-# plt.gca().set_facecolor('black')
-
-# Show the plot
-plt.show()
-plt.savefig(f'{output_dir}/latent_space.png', format='png', dpi=300)
-
-
-magnitudes = ['umag', 'gmag', 'rmag', 'imag', 'zmag', 'ymag']
-for mag in magnitudes:
-    plt.figure(figsize=(8, 6))
-    plt.scatter(combined_data[f'{mag}_original'], combined_data[f'{mag}_reconstructed'], alpha=1.0, c='black',s=0.1)
-    plt.xlabel(f'Original {mag}')
-    plt.ylabel(f'Reconstructed {mag}')
-    plt.grid()
-    plt.title(f'Original vs Reconstructed {mag}')
-    plt.plot([combined_data[f'{mag}_original'].min(), combined_data[f'{mag}_original'].max()], 
-             [combined_data[f'{mag}_original'].min(), combined_data[f'{mag}_original'].max()], 
-             color='red') 
-    plt.savefig(f'{output_dir}/{mag}_reconstruction.jpeg')
-    plt.close()

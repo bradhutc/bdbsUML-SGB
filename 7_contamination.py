@@ -4,6 +4,7 @@ import seaborn as sns
 import pandas as pd
 from scipy.interpolate import make_interp_spline
 import numpy as np
+
 file_path = 'C:/Users/Bradl/OneDrive/Desktop/BDBS/stellaridentification/bdbsparallaxprocessed_data.csv'
 df = pd.read_csv(file_path)[['gaia_id','BDBS_ID','umag','gmag','rmag','imag','zmag','ymag']]
 
@@ -60,8 +61,14 @@ plt.xticks(range(len(bands)), bands)
 plt.gca().invert_yaxis()
 plt.show()
 
-
-
-
 anom_df.to_csv('anomalies.csv', index=False)
 reg_df.to_csv('clean.csv', index=False)
+
+# This next section calculates the contamination of disk stars.
+
+# Filter the data based on the given criteria:
+# - imag between 16 and 12.5
+# - gmag - imag between 0.0 and 0.5
+filtered_df = df[(df['imag'] >= 12.5) & (df['imag'] <= 16.8) & ((df['gmag'] - df['imag']) >= 0.0) & ((df['gmag'] - df['imag']) <= 0.5)]
+contamination = len(filtered_df)/len(df)
+print(f'Percentage of Contamination of Disk Stars: {contamination*100}')
